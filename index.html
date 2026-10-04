@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>YBN New Yonkers V2</title>
-<link rel="icon" type="image/svg+xml" href="favicon.svg"> viewBox='0 0 32 32'><text y='26' font-size='28'>🏙</text></svg>">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow:ital,wght@0,400;0,500;0,600;1,400&family=Barlow+Condensed:wght@500;600;700;800;900&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/lucide/0.263.1/umd/lucide.min.js"></script>
 <style>
@@ -694,6 +694,17 @@ footer {
   .nav-discord i { width: 13px !important; height: 13px !important; }
 }
 
+/* 2026 visual polish */
+:root{--teal:#72e3c2;--teal-dim:#3bb99a;--ink:#080b0f;--surface:#0d1116;--card:#12171d;--line:#242b33;--ash:#8995a3;--fog:#c1c9d2;--snow:#f4f7fa;--grad:linear-gradient(120deg,#73e1c0 0%,#65a8ef 100%)}
+body{background:radial-gradient(circle at 72% 0%,rgba(71,121,165,.10),transparent 32rem),var(--ink)}
+.container{max-width:1180px}.display{letter-spacing:.01em}.label{color:#71cdb2}.btn{border-radius:6px;padding:14px 24px}.btn-fill{box-shadow:0 10px 32px rgba(80,180,160,.16)}
+nav{height:72px;padding:0 max(28px,calc((100vw - 1180px)/2));background:rgba(8,11,15,.82);border-bottom-color:rgba(255,255,255,.08)}.nav-links{gap:34px}.nav-links a{color:#a4adb8}.nav-discord{border-radius:6px;color:#07100e}
+.hero{min-height:92svh;padding-top:72px}.hero-overlay{background:linear-gradient(90deg,rgba(7,10,14,.98) 0%,rgba(7,10,14,.89) 37%,rgba(7,10,14,.42) 70%,rgba(7,10,14,.18) 100%),linear-gradient(0deg,var(--ink) 0%,transparent 28%)}.hero-inner{max-width:680px;padding-top:92px}.hero-logo{width:min(340px,72vw);margin-bottom:38px}.hero-h1{font-size:clamp(52px,7vw,88px);max-width:650px}.hero-desc{font-size:17px;max-width:520px;color:#bac5cf}.hero-btns{gap:14px}
+.about,.boroughs,.showcase{background:#0c1015}.about,.features,.boroughs,.showcase,.join{padding:110px 0}.about-grid{gap:96px}.stat-grid{gap:12px}.stat{border-radius:8px;padding:32px 26px;background:linear-gradient(145deg,#141a21,#10151b);transition:transform .2s,border-color .2s}.stat:hover{transform:translateY(-3px);border-color:#3a4652}
+.feature-grid{gap:14px;background:transparent;border:0}.feat{border:1px solid var(--line);border-radius:8px;padding:34px 30px;background:linear-gradient(145deg,#131920,#10151a);transition:transform .2s,border-color .2s,background .2s}.feat:hover{transform:translateY(-4px);border-color:#3c665c;background:#141d22}.feat-icon{width:46px;height:46px;border:1px solid rgba(114,227,194,.18);border-radius:8px;background:rgba(114,227,194,.05)}.feat-title{font-size:20px}.feat-desc{color:#9da8b4}
+.borough-row{gap:14px}.borough{border-radius:8px;padding:32px 18px 28px;background:#12171d}.borough:hover{transform:translateY(-3px)}.borough::after{height:3px}.showcase-grid{gap:20px}.vid-card{border-radius:9px;background:#12171d;transition:transform .2s,border-color .2s}.vid-card:hover{transform:translateY(-3px);border-color:#39434d}
+.join-grid{gap:96px}.discord-card{border-radius:10px;background:linear-gradient(145deg,#141a21,#10151b);box-shadow:0 24px 70px rgba(0,0,0,.25)}.step-num{color:#303942}.step-body p{color:#9da8b4}footer{background:#090d11}
+@media(max-width:800px){nav{padding:0 18px}.hero-inner{padding-left:22px;padding-right:22px}.about,.features,.boroughs,.showcase,.join{padding:76px 0}.container{padding:0 22px}.feature-grid{gap:10px}.about-grid,.join-grid{gap:48px}}
 </style>
 </head>
 <body>
