@@ -44,7 +44,7 @@ jobs:
 
           for API in "${APIS[@]}"; do
             echo "Trying $API"
-            if curl --retry 1 --connect-timeout 12 -fsSL                 -A "Mozilla/5.0"                 "$API/streams/$VIDEO_ID" -o "$JSON"; then
+            if curl -k --retry 1 --connect-timeout 12 -fsSL                 -A "Mozilla/5.0"                 "$API/streams/$VIDEO_ID" -o "$JSON"; then
               VIDEO_URL="$(jq -r '
                 [.videoStreams[]?
                   | select(.url != null)
@@ -67,7 +67,7 @@ jobs:
             exit 1
           fi
 
-          curl --retry 5 --retry-all-errors --connect-timeout 20 -fL             -A "Mozilla/5.0"             "$VIDEO_URL"             -o /tmp/gta-video/source-video
+          curl -k --retry 5 --retry-all-errors --connect-timeout 20 -fL             -A "Mozilla/5.0"             "$VIDEO_URL"             -o /tmp/gta-video/source-video
 
           test -s /tmp/gta-video/source-video
           ffprobe -v error -show_entries stream=width,height,codec_name -of json /tmp/gta-video/source-video
