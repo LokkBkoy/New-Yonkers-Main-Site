@@ -1,0 +1,51 @@
+name: Import native GTA IV hero video
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/import-hero-video.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  import-video:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install yt-dlp and ffmpeg
+        run: |
+          python -m pip install --upgrade yt-dlp
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+
+      - name: Download source video
+        run: |
+          mkdir -p /tmp/gta-video assets/videos
+          yt-dlp --no-playlist             -f "bv*[height<=1080]/best[height<=1080]"             -o "/tmp/gta-video/source.%(ext)s"             "https://www.youtube.com/watch?v=RhKZUEyWRdE"
+          SOURCE="$(find /tmp/gta-video -maxdepth 1 -type f -name 'source.*' | head -n 1)"
+          test -n "$SOURCE"
+          echo "SOURCE=$SOURCE" >> "$GITHUB_ENV"
+
+      - name: Trim Rockstar intro and optimize for native web playback
+        run: |
+          ffmpeg -y -ss 28.85 -i "$SOURCE"             -an             -vf "fps=24,scale=1920:-2:flags=lanczos"             -c:v libx264 -preset faster -crf 18             -pix_fmt yuv420p             -movflags +faststart             assets/videos/gta-loading.mp4
+          test -s assets/videos/gta-loading.mp4
+          ls -lh assets/videos/gta-loading.mp4
+          ffprobe -v error -show_entries format=duration,size -of json assets/videos/gta-loading.mp4
+
+      - name: Commit native hero video
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add assets/videos/gta-loading.mp4
+          if git diff --cached --quiet; then
+            echo "Video already up to date."
+            exit 0
+          fi
+          git commit -m "Add native GTA IV loading-screen hero video"
+          git push
