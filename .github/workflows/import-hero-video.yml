@@ -48,8 +48,9 @@ jobs:
               VIDEO_URL="$(jq -r '
                 [.videoStreams[]?
                   | select(.url != null)
-                  | . + {h: ((.quality // "0") | capture("(?<n>[0-9]+)")?.n // "0" | tonumber)}
-                  | select(.h <= 1080 and .h >= 720)
+                  | ((.quality // "0") | gsub("[^0-9]"; "") | tonumber? // 0) as $h
+                  | select($h <= 1080 and $h >= 720)
+                  | . + {h: $h}
                 ]
                 | sort_by(.h)
                 | reverse
