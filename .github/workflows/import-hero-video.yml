@@ -22,29 +22,46 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y ffmpeg jq
 
-      - name: Download the high-quality loading-screen video through a privacy frontend
+      - name: Resolve and download the high-quality source without embedding YouTube
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p /tmp/gta-video assets/videos
           VIDEO_ID="6GkRXC0p9Zc"
-          STREAM_JSON="/tmp/gta-video/streams.json"
+          META="/tmp/gta-video/video.json"
           VIDEO_URL=""
 
-          for API in             "https://pipedapi.kavin.rocks"             "https://pipedapi.leptons.xyz"             "https://pipedapi.nosebs.ru"
+          for API in             "https://inv.nadeko.net"             "https://invidious.nerdvpn.de"             "https://yt.chocolatemoo53.com"             "https://invidious.tiekoetter.com"
           do
             echo "Trying $API"
-            if curl --retry 2 --connect-timeout 15 -fsSL "$API/streams/$VIDEO_ID" -o "$STREAM_JSON"; then
+            if curl --retry 2 --connect-timeout 15 -fsSL               -A "Mozilla/5.0"               "$API/api/v1/videos/$VIDEO_ID"               -o "$META"; then
+
               VIDEO_URL="$(jq -r '
-                [.videoStreams[]?
-                  | select(.url != null)
-                  | . + {h: ((.quality // "0") | capture("(?<n>[0-9]+)")?.n // "0" | tonumber)}
-                  | select(.h <= 1080)
-                ]
-                | sort_by(.h)
-                | reverse
-                | .[0].url // empty
-              ' "$STREAM_JSON")"
+                (
+                  [.adaptiveFormats[]?
+                    | select(.url != null)
+                    | select((.type // "") | startswith("video/"))
+                    | . + {h: ((.qualityLabel // .quality // "0") | capture("(?<n>[0-9]+)")?.n // "0" | tonumber)}
+                    | select(.h <= 1080)
+                  ]
+                  | sort_by(.h)
+                  | reverse
+                  | .[0].url
+                )
+                //
+                (
+                  [.formatStreams[]?
+                    | select(.url != null)
+                    | . + {h: ((.qualityLabel // .resolution // .quality // "0") | capture("(?<n>[0-9]+)")?.n // "0" | tonumber)}
+                    | select(.h <= 1080)
+                  ]
+                  | sort_by(.h)
+                  | reverse
+                  | .[0].url
+                )
+                // empty
+              ' "$META")"
+
               if [ -n "$VIDEO_URL" ] && [ "$VIDEO_URL" != "null" ]; then
                 break
               fi
