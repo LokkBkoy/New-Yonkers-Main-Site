@@ -44,7 +44,11 @@ jobs:
 
           for API in "${APIS[@]}"; do
             echo "Trying $API"
-            if curl -k --retry 1 --connect-timeout 12 -fsSL                 -A "Mozilla/5.0"                 "$API/streams/$VIDEO_ID" -o "$JSON"; then
+            if curl -k --retry 1 --connect-timeout 12 --max-time 25 -fsSL                 -A "Mozilla/5.0"                 "$API/streams/$VIDEO_ID" -o "$JSON"; then
+              if ! jq -e . "$JSON" >/dev/null 2>&1; then
+                echo "Non-JSON response from $API; skipping."
+                continue
+              fi
               VIDEO_URL="$(jq -r '
                 [.videoStreams[]?
                   | select(.url != null)
