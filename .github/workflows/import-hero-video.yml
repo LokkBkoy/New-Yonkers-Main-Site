@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/import-hero-video.yml"
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -12,88 +13,56 @@ permissions:
 jobs:
   import-video:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Install tools
+        shell: bash
         run: |
+          set -euo pipefail
           sudo apt-get update
-          sudo apt-get install -y ffmpeg jq
+          sudo apt-get install -y ffmpeg curl unzip
+          curl -fsSL https://deno.land/install.sh | sh
+          echo "$HOME/.deno/bin" >> "$GITHUB_PATH"
+          python -m pip install --upgrade --pre "yt-dlp[default,curl-cffi]"
 
-      - name: Resolve and download the high-quality source without embedding YouTube
+      - name: Download exact uploaded-video source
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p /tmp/gta-video assets/videos
-          VIDEO_ID="6GkRXC0p9Zc"
-          META="/tmp/gta-video/video.json"
-          VIDEO_URL=""
+          URL="https://www.youtube.com/watch?v=6GkRXC0p9Zc"
 
-          for API in             "https://inv.nadeko.net"             "https://invidious.nerdvpn.de"             "https://yt.chocolatemoo53.com"             "https://invidious.tiekoetter.com"
-          do
-            echo "Trying $API"
-            if curl --retry 2 --connect-timeout 15 -fsSL               -A "Mozilla/5.0"               "$API/api/v1/videos/$VIDEO_ID"               -o "$META"; then
+          yt-dlp             --no-playlist             --js-runtimes "deno:$HOME/.deno/bin/deno"             --impersonate chrome             --extractor-args "youtube:player_client=tv,web_safari,web_embedded"             -f "bv*[height<=1080][vcodec^=avc1]/bv*[height<=1080]/best[height<=1080]"             -o "/tmp/gta-video/source.%(ext)s"             "$URL"
 
-              VIDEO_URL="$(jq -r '
-                (
-                  [.adaptiveFormats[]?
-                    | select(.url != null)
-                    | select((.type // "") | startswith("video/"))
-                    | . + {h: ((.qualityLabel // .quality // "0") | capture("(?<n>[0-9]+)")?.n // "0" | tonumber)}
-                    | select(.h <= 1080)
-                  ]
-                  | sort_by(.h)
-                  | reverse
-                  | .[0].url
-                )
-                //
-                (
-                  [.formatStreams[]?
-                    | select(.url != null)
-                    | . + {h: ((.qualityLabel // .resolution // .quality // "0") | capture("(?<n>[0-9]+)")?.n // "0" | tonumber)}
-                    | select(.h <= 1080)
-                  ]
-                  | sort_by(.h)
-                  | reverse
-                  | .[0].url
-                )
-                // empty
-              ' "$META")"
+          SOURCE="$(find /tmp/gta-video -maxdepth 1 -type f -name 'source.*' | head -n 1)"
+          test -n "$SOURCE"
+          echo "SOURCE=$SOURCE" >> "$GITHUB_ENV"
+          ffprobe -v error -show_entries stream=width,height,codec_name -of json "$SOURCE"
 
-              if [ -n "$VIDEO_URL" ] && [ "$VIDEO_URL" != "null" ]; then
-                break
-              fi
-            fi
-          done
-
-          if [ -z "$VIDEO_URL" ] || [ "$VIDEO_URL" = "null" ]; then
-            echo "Could not resolve a native stream URL."
-            exit 1
-          fi
-
-          echo "Downloading resolved stream..."
-          curl --retry 5 --retry-all-errors --connect-timeout 20 -fL             -A "Mozilla/5.0"             "$VIDEO_URL"             -o /tmp/gta-video/source-video
-
-          test -s /tmp/gta-video/source-video
-          ffprobe -v error -show_entries stream=width,height,codec_name -of json /tmp/gta-video/source-video
-
-      - name: Trim all Rockstar/legal intro screens and optimize for native web playback
+      - name: Remove Rockstar/legal intro and optimize
+        shell: bash
         run: |
-          ffmpeg -y -ss 28.85 -i /tmp/gta-video/source-video             -an             -vf "fps=24,scale=1920:-2:flags=lanczos"             -c:v libx264 -preset faster -crf 18             -pix_fmt yuv420p             -movflags +faststart             assets/videos/gta-loading.mp4
+          set -euo pipefail
+          ffmpeg -y -ss 28.85 -i "$SOURCE"             -an             -vf "fps=24,scale=1920:-2:flags=lanczos"             -c:v libx264 -profile:v high -level 4.1 -pix_fmt yuv420p             -preset medium -crf 19             -movflags +faststart             assets/videos/gta-loading.mp4
+
+          ffmpeg -y -ss 0.4 -i assets/videos/gta-loading.mp4             -frames:v 1 -q:v 2 assets/videos/gta-loading-poster.jpg
 
           test -s assets/videos/gta-loading.mp4
-          ls -lh assets/videos/gta-loading.mp4
-          ffprobe -v error -show_entries format=duration,size -show_entries stream=width,height,codec_name -of json assets/videos/gta-loading.mp4
+          test -s assets/videos/gta-loading-poster.jpg
+          ls -lh assets/videos/gta-loading.*
 
-      - name: Commit native hero video
+      - name: Commit native video assets
+        shell: bash
         run: |
+          set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add assets/videos/gta-loading.mp4
+          git add assets/videos/gta-loading.mp4 assets/videos/gta-loading-poster.jpg
           if git diff --cached --quiet; then
-            echo "Video already up to date."
+            echo "Video already current."
             exit 0
           fi
           git commit -m "Add native GTA IV loading-screen hero video"
