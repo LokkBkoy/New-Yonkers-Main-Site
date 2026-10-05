@@ -19,34 +19,63 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install tools
-        shell: bash
         run: |
-          set -euo pipefail
           sudo apt-get update
-          sudo apt-get install -y ffmpeg curl unzip
-          curl -fsSL https://deno.land/install.sh | sh
-          echo "$HOME/.deno/bin" >> "$GITHUB_PATH"
-          python -m pip install --upgrade --pre "yt-dlp[default,curl-cffi]"
+          sudo apt-get install -y ffmpeg jq curl
 
-      - name: Download exact uploaded-video source
+      - name: Resolve a direct native stream
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p /tmp/gta-video assets/videos
-          URL="https://www.youtube.com/watch?v=6GkRXC0p9Zc"
+          VIDEO_ID="6GkRXC0p9Zc"
+          VIDEO_URL=""
+          JSON="/tmp/gta-video/streams.json"
 
-          yt-dlp             --no-playlist             --js-runtimes "deno:$HOME/.deno/bin/deno"             --impersonate chrome             --extractor-args "youtube:player_client=tv,web_safari,web_embedded"             -f "bv*[height<=1080][vcodec^=avc1]/bv*[height<=1080]/best[height<=1080]"             -o "/tmp/gta-video/source.%(ext)s"             "$URL"
+          APIS=(
+            "https://pipedapi.tokhmi.xyz"
+            "https://pipedapi.moomoo.me"
+            "https://pipedapi.syncpundit.io"
+            "https://api-piped.mha.fi"
+            "https://piped-api.garudalinux.org"
+            "https://pipedapi.kavin.rocks"
+            "https://pipedapi.leptons.xyz"
+          )
 
-          SOURCE="$(find /tmp/gta-video -maxdepth 1 -type f -name 'source.*' | head -n 1)"
-          test -n "$SOURCE"
-          echo "SOURCE=$SOURCE" >> "$GITHUB_ENV"
-          ffprobe -v error -show_entries stream=width,height,codec_name -of json "$SOURCE"
+          for API in "${APIS[@]}"; do
+            echo "Trying $API"
+            if curl --retry 1 --connect-timeout 12 -fsSL                 -A "Mozilla/5.0"                 "$API/streams/$VIDEO_ID" -o "$JSON"; then
+              VIDEO_URL="$(jq -r '
+                [.videoStreams[]?
+                  | select(.url != null)
+                  | . + {h: ((.quality // "0") | capture("(?<n>[0-9]+)")?.n // "0" | tonumber)}
+                  | select(.h <= 1080 and .h >= 720)
+                ]
+                | sort_by(.h)
+                | reverse
+                | .[0].url // empty
+              ' "$JSON")"
+              if [ -n "$VIDEO_URL" ] && [ "$VIDEO_URL" != "null" ]; then
+                echo "Resolved via $API"
+                break
+              fi
+            fi
+          done
 
-      - name: Remove Rockstar/legal intro and optimize
-        shell: bash
+          if [ -z "$VIDEO_URL" ] || [ "$VIDEO_URL" = "null" ]; then
+            echo "Could not resolve native stream."
+            exit 1
+          fi
+
+          curl --retry 5 --retry-all-errors --connect-timeout 20 -fL             -A "Mozilla/5.0"             "$VIDEO_URL"             -o /tmp/gta-video/source-video
+
+          test -s /tmp/gta-video/source-video
+          ffprobe -v error -show_entries stream=width,height,codec_name -of json /tmp/gta-video/source-video
+
+      - name: Remove intro and optimize for native web playback
         run: |
           set -euo pipefail
-          ffmpeg -y -ss 28.85 -i "$SOURCE"             -an             -vf "fps=24,scale=1920:-2:flags=lanczos"             -c:v libx264 -profile:v high -level 4.1 -pix_fmt yuv420p             -preset medium -crf 19             -movflags +faststart             assets/videos/gta-loading.mp4
+          ffmpeg -y -ss 28.85 -i /tmp/gta-video/source-video             -an             -vf "fps=24,scale=1920:-2:flags=lanczos"             -c:v libx264 -profile:v high -level 4.1 -pix_fmt yuv420p             -preset medium -crf 19             -movflags +faststart             assets/videos/gta-loading.mp4
 
           ffmpeg -y -ss 0.4 -i assets/videos/gta-loading.mp4             -frames:v 1 -q:v 2 assets/videos/gta-loading-poster.jpg
 
@@ -55,7 +84,6 @@ jobs:
           ls -lh assets/videos/gta-loading.*
 
       - name: Commit native video assets
-        shell: bash
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
