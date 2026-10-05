@@ -17,26 +17,58 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install yt-dlp and ffmpeg
+      - name: Install tools
         run: |
-          python -m pip install --upgrade yt-dlp
           sudo apt-get update
-          sudo apt-get install -y ffmpeg
+          sudo apt-get install -y ffmpeg jq
 
-      - name: Download source video
+      - name: Download the high-quality loading-screen video through a privacy frontend
+        shell: bash
         run: |
+          set -euo pipefail
           mkdir -p /tmp/gta-video assets/videos
-          yt-dlp --no-playlist             -f "bv*[height<=1080]/best[height<=1080]"             -o "/tmp/gta-video/source.%(ext)s"             "https://www.youtube.com/watch?v=RhKZUEyWRdE"
-          SOURCE="$(find /tmp/gta-video -maxdepth 1 -type f -name 'source.*' | head -n 1)"
-          test -n "$SOURCE"
-          echo "SOURCE=$SOURCE" >> "$GITHUB_ENV"
+          VIDEO_ID="6GkRXC0p9Zc"
+          STREAM_JSON="/tmp/gta-video/streams.json"
+          VIDEO_URL=""
 
-      - name: Trim Rockstar intro and optimize for native web playback
+          for API in             "https://pipedapi.kavin.rocks"             "https://pipedapi.leptons.xyz"             "https://pipedapi.nosebs.ru"
+          do
+            echo "Trying $API"
+            if curl --retry 2 --connect-timeout 15 -fsSL "$API/streams/$VIDEO_ID" -o "$STREAM_JSON"; then
+              VIDEO_URL="$(jq -r '
+                [.videoStreams[]?
+                  | select(.url != null)
+                  | . + {h: ((.quality // "0") | capture("(?<n>[0-9]+)")?.n // "0" | tonumber)}
+                  | select(.h <= 1080)
+                ]
+                | sort_by(.h)
+                | reverse
+                | .[0].url // empty
+              ' "$STREAM_JSON")"
+              if [ -n "$VIDEO_URL" ] && [ "$VIDEO_URL" != "null" ]; then
+                break
+              fi
+            fi
+          done
+
+          if [ -z "$VIDEO_URL" ] || [ "$VIDEO_URL" = "null" ]; then
+            echo "Could not resolve a native stream URL."
+            exit 1
+          fi
+
+          echo "Downloading resolved stream..."
+          curl --retry 5 --retry-all-errors --connect-timeout 20 -fL             -A "Mozilla/5.0"             "$VIDEO_URL"             -o /tmp/gta-video/source-video
+
+          test -s /tmp/gta-video/source-video
+          ffprobe -v error -show_entries stream=width,height,codec_name -of json /tmp/gta-video/source-video
+
+      - name: Trim all Rockstar/legal intro screens and optimize for native web playback
         run: |
-          ffmpeg -y -ss 28.85 -i "$SOURCE"             -an             -vf "fps=24,scale=1920:-2:flags=lanczos"             -c:v libx264 -preset faster -crf 18             -pix_fmt yuv420p             -movflags +faststart             assets/videos/gta-loading.mp4
+          ffmpeg -y -ss 28.85 -i /tmp/gta-video/source-video             -an             -vf "fps=24,scale=1920:-2:flags=lanczos"             -c:v libx264 -preset faster -crf 18             -pix_fmt yuv420p             -movflags +faststart             assets/videos/gta-loading.mp4
+
           test -s assets/videos/gta-loading.mp4
           ls -lh assets/videos/gta-loading.mp4
-          ffprobe -v error -show_entries format=duration,size -of json assets/videos/gta-loading.mp4
+          ffprobe -v error -show_entries format=duration,size -show_entries stream=width,height,codec_name -of json assets/videos/gta-loading.mp4
 
       - name: Commit native hero video
         run: |
