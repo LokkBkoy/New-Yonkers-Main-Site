@@ -1,0 +1,12 @@
+name = "new-yonkers-vision-media"
+main = "src/index.ts"
+compatibility_date = "2026-10-08"
+workers_dev = false
+
+[[routes]]
+pattern = "vision.newyonkers.org"
+custom_domain = true
+
+[[r2_buckets]]
+binding = "MEDIA"
+bucket_name = "newyonkers-vision-media"
